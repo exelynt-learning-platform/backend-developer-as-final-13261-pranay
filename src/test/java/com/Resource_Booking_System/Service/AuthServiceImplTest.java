@@ -8,20 +8,21 @@ import com.Resource_Booking_System.Dto.SignUpResponse;
 import com.Resource_Booking_System.Entity.Role;
 import com.Resource_Booking_System.Entity.User;
 import com.Resource_Booking_System.Exception.UserEmailNotFoundException;
-import com.Resource_Booking_System.Exception.UsernameNotFoundException;
 import com.Resource_Booking_System.Repository.UserRepository;
 import com.Resource_Booking_System.ServiceImpl.AuthServiceImpl;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,6 +50,9 @@ class AuthServiceImplTest {
     private AuthServiceImpl authService;
 
 
+    // ---------------------------------------------------------
+    // SIGNUP - SUCCESS
+    // ---------------------------------------------------------
 
     @Test
     void signUp_ShouldCreateUserSuccessfully() {
@@ -84,7 +88,6 @@ class AuthServiceImplTest {
 
         assertNotNull(response);
 
-
         assertEquals(1L, response.getId());
         assertEquals("Rahul", response.getUsername());
         assertEquals("rahul@gmail.com", response.getEmail());
@@ -101,6 +104,9 @@ class AuthServiceImplTest {
     }
 
 
+    // ---------------------------------------------------------
+    // SIGNUP - USERNAME ALREADY EXISTS
+    // ---------------------------------------------------------
 
     @Test
     void signUp_WhenUsernameExists_ShouldThrowException() {
@@ -124,6 +130,9 @@ class AuthServiceImplTest {
     }
 
 
+    // ---------------------------------------------------------
+    // SIGNUP - EMAIL ALREADY EXISTS
+    // ---------------------------------------------------------
 
     @Test
     void signUp_WhenEmailExists_ShouldThrowException() {
@@ -143,11 +152,17 @@ class AuthServiceImplTest {
         assertThrows(UserEmailNotFoundException.class, () -> authService.signUp(request));
 
 
+        verify(userRepository).existsByUsername("Rahul");
+
         verify(userRepository).existsByEmail("rahul@gmail.com");
 
         verify(userRepository, never()).save(any(User.class));
     }
 
+
+    // ---------------------------------------------------------
+    // LOGIN - SUCCESS
+    // ---------------------------------------------------------
 
     @Test
     void loginUser_ShouldReturnTokensSuccessfully() {
@@ -156,18 +171,6 @@ class AuthServiceImplTest {
 
         request.setUsername("Pranay");
         request.setPassword("Pranay123");
-
-
-        User user = new User();
-
-        user.setId(1L);
-        user.setUsername("Pranay");
-        user.setEmail("pranay@gmail.com");
-        user.setPassword("encodedPassword");
-        user.setRole(Role.ADMIN);
-
-
-        when(userRepository.findByUsername("Pranay")).thenReturn(Optional.of(user));
 
 
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
@@ -188,19 +191,22 @@ class AuthServiceImplTest {
         assertEquals("refresh-token", response.getRefreshToken());
 
 
-        verify(userRepository).findByUsername("Pranay");
-
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
 
         verify(jwtUtil).generateAccessToken("Pranay");
 
         verify(jwtUtil).generateRefreshToken("Pranay");
+
+        verifyNoInteractions(userRepository);
     }
 
 
+    // ---------------------------------------------------------
+    // LOGIN - USER NOT FOUND / AUTHENTICATION FAILED
+    // ---------------------------------------------------------
 
     @Test
-    void loginUser_WhenUserNotFound_ShouldThrowException() {
+    void loginUser_WhenAuthenticationFails_ShouldThrowException() {
 
         LoginRequest request = new LoginRequest();
 
@@ -208,18 +214,19 @@ class AuthServiceImplTest {
         request.setPassword("Unknown123");
 
 
-        when(userRepository.findByUsername("Unknown")).thenReturn(Optional.empty());
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenThrow(new UsernameNotFoundException("User not found"));
 
 
         assertThrows(UsernameNotFoundException.class, () -> authService.loginUser(request));
 
 
-        verify(userRepository).findByUsername("Unknown");
+        verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
 
-        verify(authenticationManager, never()).authenticate(any());
 
         verify(jwtUtil, never()).generateAccessToken(any(String.class));
 
         verify(jwtUtil, never()).generateRefreshToken(any(String.class));
+
+        verifyNoInteractions(userRepository);
     }
 }

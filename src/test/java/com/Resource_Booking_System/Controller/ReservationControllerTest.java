@@ -37,7 +37,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -275,8 +274,8 @@ class ReservationControllerTest {
         doNothing().when(reservationService).deleteReservation(1L, "admin", true);
 
 
-        mockMvc.perform(delete("/api/reservations/1")).andExpect(status().isOk()).andExpect(content().string("Delete SuccessFully !"));
-
+        mockMvc.perform(delete("/api/reservations/1"))
+                .andExpect(status().isNoContent());
 
         verify(reservationService).deleteReservation(1L, "admin", true);
     }

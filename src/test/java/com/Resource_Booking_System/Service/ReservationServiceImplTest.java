@@ -9,6 +9,7 @@ import com.Resource_Booking_System.Entity.Resource;
 import com.Resource_Booking_System.Entity.Role;
 import com.Resource_Booking_System.Entity.User;
 import com.Resource_Booking_System.Exception.BadRequestException;
+import com.Resource_Booking_System.Exception.ForbiddenException;
 import com.Resource_Booking_System.Exception.ReservationNotFoundException;
 import com.Resource_Booking_System.Exception.ResourceNotFoundException;
 import com.Resource_Booking_System.Exception.UsernameNotFoundException;
@@ -374,7 +375,7 @@ class ReservationServiceImplTest {
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
 
 
-        assertThrows(BadRequestException.class, () -> reservationService.getReservationById(1L, "Shyam", false));
+        assertThrows(ForbiddenException.class, () -> reservationService.getReservationById(1L, "Shyam", false));
     }
 
 
@@ -424,7 +425,7 @@ class ReservationServiceImplTest {
         when(reservationRepository.findById(99L)).thenReturn(Optional.empty());
 
 
-        assertThrows(ResourceNotFoundException.class, () -> reservationService.getReservationById(99L, "Ram", false));
+        assertThrows(ReservationNotFoundException.class, () -> reservationService.getReservationById(99L, "Ram", false));
     }
 
 
@@ -630,7 +631,7 @@ class ReservationServiceImplTest {
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
 
 
-        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, "Ram", false));
+        assertThrows(ForbiddenException.class, () -> reservationService.updateReservation(1L, request, "Ram", false));
 
 
         verify(resourceRepository, never()).findById(any());
@@ -746,7 +747,7 @@ class ReservationServiceImplTest {
 
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
 
-        assertThrows(BadRequestException.class, () -> reservationService.deleteReservation(1L, "Ram", false));
+        assertThrows(ForbiddenException.class, () -> reservationService.deleteReservation(1L, "Ram", false));
 
         verify(reservationRepository, never()).delete(any(Reservation.class));
     }
