@@ -4,6 +4,7 @@ import com.Resource_Booking_System.Configure.JwtUtil;
 import com.Resource_Booking_System.Dto.AuthResponse;
 import com.Resource_Booking_System.Dto.LoginRequest;
 import com.Resource_Booking_System.Dto.SignUpRequest;
+import com.Resource_Booking_System.Dto.SignUpResponse;
 import com.Resource_Booking_System.Entity.Role;
 import com.Resource_Booking_System.Entity.User;
 import com.Resource_Booking_System.Exception.UserEmailNotFoundException;
@@ -78,17 +79,16 @@ class AuthServiceImplTest {
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
 
-        SignUpRequest response = authService.signUp(request);
+        SignUpResponse response = authService.signUp(request);
 
 
         assertNotNull(response);
 
+
         assertEquals(1L, response.getId());
         assertEquals("Rahul", response.getUsername());
         assertEquals("rahul@gmail.com", response.getEmail());
-        assertEquals(Role.USER, response.getRole());
-
-        assertNull(response.getPassword());
+        assertEquals("USER", response.getRole());
 
 
         verify(userRepository).existsByUsername("Rahul");

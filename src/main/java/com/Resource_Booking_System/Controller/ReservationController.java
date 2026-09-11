@@ -61,7 +61,13 @@ public class ReservationController {
                 .stream()
                 .anyMatch(a -> a.getAuthority().equals("ADMIN"));
 
-        Page<ReservationResponse> response = reservationService.getAllReservation(status, minPrice, maxPrice, userDetails.getUsername(), isAdmin, pageable);
+        Page<ReservationResponse> response = reservationService.getAllReservation(
+                status,
+                minPrice,
+                maxPrice,
+                userDetails.getUsername(),
+                isAdmin,
+                pageable);
 
         return ResponseEntity.ok(response);
     }
@@ -73,17 +79,28 @@ public class ReservationController {
             @Valid @RequestBody ReservationUpdateRequest request,
             @AuthenticationPrincipal UserDetails userDetails)
     {
+        boolean isAdmin = userDetails.getAuthorities()
+                .stream()
+                .anyMatch(a -> a.getAuthority().equals("ADMIN"));
 
-        ReservationResponse response = reservationService.updateReservation(id, request, userDetails.getUsername(), true);
+        ReservationResponse response = reservationService.updateReservation(
+                id,
+                request,
+                userDetails.getUsername(),
+                isAdmin);
 
         return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteReservation(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<Void> deleteReservation(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
 
-        reservationService.deleteReservation(id, userDetails.getUsername(), true);
+        boolean isAdmin = userDetails.getAuthorities()
+                .stream()
+                .anyMatch(a -> a.getAuthority().equals("ADMIN"));
 
-        return  ResponseEntity.ok("Delete SuccessFully !");
+        reservationService.deleteReservation(id, userDetails.getUsername(), isAdmin);
+
+        return ResponseEntity.noContent().build();
     }
 }

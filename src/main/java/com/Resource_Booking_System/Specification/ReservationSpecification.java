@@ -11,6 +11,9 @@ import java.util.List;
 
 public class ReservationSpecification {
 
+    private ReservationSpecification() {
+    }
+
     public static Specification<Reservation> filterReservations(Long userId, ReservationStatus status, BigDecimal minPrice, BigDecimal maxPrice)
     {
         return (root, query, cb) -> {

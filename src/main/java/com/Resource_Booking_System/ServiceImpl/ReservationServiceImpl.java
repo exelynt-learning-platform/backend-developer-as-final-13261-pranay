@@ -11,6 +11,7 @@ import com.Resource_Booking_System.Exception.BadRequestException;
 import com.Resource_Booking_System.Exception.ReservationNotFoundException;
 import com.Resource_Booking_System.Exception.ResourceNotFoundException;
 import com.Resource_Booking_System.Exception.UsernameNotFoundException;
+import com.Resource_Booking_System.Exception.ForbiddenException;
 import com.Resource_Booking_System.IService.IReservationService;
 import com.Resource_Booking_System.Repository.ReservationRepository;
 import com.Resource_Booking_System.Repository.ResourceRepository;
@@ -28,6 +29,9 @@ import java.time.LocalDateTime;
 @Service
 public class ReservationServiceImpl implements IReservationService {
 
+    private static final String ONLY_ADMIN_UPDATE = "Only ADMIN can update reservation";
+    private static final String ONLY_ADMIN_DELETE = "Only ADMIN can delete reservation";
+
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
     private final ResourceRepository resourceRepository;
@@ -42,9 +46,11 @@ public class ReservationServiceImpl implements IReservationService {
     @Override
     public ReservationResponse createReservation(ReservationRequest reservationRequest, String username) {
 
-        User user = userRepository.findByUsername(username).orElseThrow(() -> new UsernameNotFoundException("User Not Found"));
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User Not Found"));
 
-        Resource resource = resourceRepository.findById(reservationRequest.getResourceId()).orElseThrow(() -> new ResourceNotFoundException("Resource not found with ID: " + reservationRequest.getResourceId()));
+        Resource resource = resourceRepository.findById(reservationRequest.getResourceId())
+                .orElseThrow(() -> new ResourceNotFoundException("Resource not found with ID: " + reservationRequest.getResourceId()));
 
         if (!resource.getAvailable()) {
             throw new BadRequestException("Resource is not available");
@@ -56,6 +62,15 @@ public class ReservationServiceImpl implements IReservationService {
 
         if (reservationRequest.getStartTime().isBefore(LocalDateTime.now())) {
             throw new BadRequestException("Start time must be in the future");
+        }
+        boolean overlap = reservationRepository
+                .existsByResourceIdAndStartTimeLessThanAndEndTimeGreaterThan (
+                        resource.getId(),
+                        reservationRequest.getEndTime(),
+                        reservationRequest.getStartTime()
+                );
+        if (overlap) {
+            throw new BadRequestException ( "Resource is already booked for the selected time" );
         }
 
         Reservation reservation = new Reservation();
@@ -87,10 +102,11 @@ public class ReservationServiceImpl implements IReservationService {
     @Override
     public ReservationResponse getReservationById(Long id, String username, boolean isAdmin) {
 
-        Reservation reservation = reservationRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Reservation not found with ID: " + id));
+        Reservation reservation = reservationRepository.findById(id).orElseThrow(()
+                -> new ReservationNotFoundException("Reservation not found with ID: " + id));
 
         if (!isAdmin && !reservation.getUser().getUsername().equals(username)) {
-            throw new BadRequestException("Access denied: You can only view your own reservations");
+            throw new ForbiddenException("Access denied: You can only view your own reservations");
         }
 
         ReservationResponse request = new ReservationResponse();
@@ -130,7 +146,8 @@ public class ReservationServiceImpl implements IReservationService {
         Long userId = null;
 
         if (!isAdmin) {
-            User user = userRepository.findByUsername(username).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            User user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
             userId = user.getId();
         }
 
@@ -170,9 +187,12 @@ public class ReservationServiceImpl implements IReservationService {
                 .orElseThrow(() -> new ReservationNotFoundException("Reservation not found with id: " + id));
 
 
-        if (!isAdmin)
-        {
-            throw new BadRequestException("Only ADMIN can update reservation");
+        if (!isAdmin) {
+            throw new ForbiddenException(ONLY_ADMIN_UPDATE);
+        }
+
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) {
+            throw new BadRequestException("Cancelled reservation cannot be modified");
         }
 
         if (!updateRequest.getStartTime().isBefore(updateRequest.getEndTime()))
@@ -193,6 +213,17 @@ public class ReservationServiceImpl implements IReservationService {
         if (!resource.getAvailable())
         {
             throw new BadRequestException("Resource is not available");
+        }
+
+        boolean overlap = reservationRepository
+                .existsByResourceIdAndIdNotAndStartTimeLessThanAndEndTimeGreaterThan(
+                        resource.getId(),
+                        id,
+                        updateRequest.getEndTime(),
+                        updateRequest.getStartTime()
+                );
+        if (overlap) {
+            throw new BadRequestException("Resource is already booked for the selected time");
         }
 
 
@@ -233,7 +264,7 @@ public class ReservationServiceImpl implements IReservationService {
         Reservation reservation = reservationRepository.findById(id).orElseThrow(() -> new ReservationNotFoundException("Reservation not found with id: " + id));
 
         if (!isAdmin) {
-            throw new BadRequestException("Only ADMIN can delete reservation");
+            throw new ForbiddenException(ONLY_ADMIN_DELETE);
         }
 
         reservationRepository.delete(reservation);

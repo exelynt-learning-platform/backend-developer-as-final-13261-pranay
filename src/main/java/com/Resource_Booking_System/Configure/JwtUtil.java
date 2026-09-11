@@ -5,11 +5,13 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,41 +22,47 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secret;
 
-    private final long ACCESS_TOKEN_VALIDITY = 1000L * 60 * 60 * 10;     // 10 hrs
-    private final long REFRESH_TOKEN_VALIDITY = 7L * 24 * 60 * 60 * 1000; // 7 Days
+    @Value("${jwt.access-token-validity}")
+    private long accessTokenValidity;
 
-    private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(secret.getBytes());
+    @Value("${jwt.refresh-token-validity}")
+    private long refreshTokenValidity;
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateAccessToken(String username) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, username, ACCESS_TOKEN_VALIDITY);
+        claims.put("type", "ACCESS");
+
+        return createToken(claims, username, accessTokenValidity);
     }
 
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername(), ACCESS_TOKEN_VALIDITY);
+        claims.put("type", "ACCESS");
+
+        return createToken(claims, userDetails.getUsername(), accessTokenValidity);
     }
 
     public String generateRefreshToken(String username) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, username, REFRESH_TOKEN_VALIDITY);
+        claims.put("type", "REFRESH");
+
+        return createToken(claims, username, refreshTokenValidity);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername(), REFRESH_TOKEN_VALIDITY);
+        claims.put("type", "REFRESH");
+
+        return createToken(claims, userDetails.getUsername(), refreshTokenValidity);
     }
 
     private String createToken(Map<String, Object> claims, String subject, long validity) {
-        return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject).
-                setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + validity))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                .compact();
+
+        return Jwts.builder().setClaims(claims).setSubject(subject).setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis() + validity)).signWith(getSigningKey(), SignatureAlgorithm.HS256).compact();
     }
 
     public String extractUsername(String token) {
@@ -62,17 +70,20 @@ public class JwtUtil {
     }
 
     public boolean validateToken(String token, UserDetails userDetails) {
+
         try {
-            String username = extractUsername(token);
-            return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+            Claims claims = extractAllClaims(token);
+
+            String username = claims.getSubject();
+            String tokenType = claims.get("type", String.class);
+
+            return "ACCESS".equals(tokenType)
+                    && username.equals(userDetails.getUsername())
+                    && !isTokenExpired(token);
+
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
-    }
-
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
 
     private boolean isTokenExpired(String token) {
@@ -80,6 +91,7 @@ public class JwtUtil {
     }
 
     private Claims extractAllClaims(String token) {
-        return Jwts.parser().setSigningKey(getSigningKey()).build().parseClaimsJws(token).getBody();
+
+        return Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
     }
 }

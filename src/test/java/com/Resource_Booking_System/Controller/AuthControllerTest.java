@@ -5,6 +5,7 @@ import com.Resource_Booking_System.Configure.MyUserDetailsService;
 import com.Resource_Booking_System.Dto.AuthResponse;
 import com.Resource_Booking_System.Dto.LoginRequest;
 import com.Resource_Booking_System.Dto.SignUpRequest;
+import com.Resource_Booking_System.Dto.SignUpResponse;
 import com.Resource_Booking_System.IService.IAuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -19,7 +20,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,11 +53,12 @@ class AuthControllerTest {
         request.setPassword("Ram@123");
 
 
-        SignUpRequest response = new SignUpRequest();
+        SignUpResponse response = new SignUpResponse();
 
         response.setId(1L);
         response.setUsername("Ram");
         response.setEmail("ram@gmail.com");
+        response.setRole("USER");
 
 
         when(authService.signUp(any(SignUpRequest.class))).thenReturn(response);
@@ -66,7 +67,12 @@ class AuthControllerTest {
         mockMvc.perform(post("/auth/signup")
 
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request))).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(1)).andExpect(jsonPath("$.username").value("Ram")).andExpect(jsonPath("$.email").value("ram@gmail.com"));
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.username").value("Ram"))
+                .andExpect(jsonPath("$.email").value("ram@gmail.com"))
+                .andExpect(jsonPath("$.role").value("USER"));
 
 
         verify(authService).signUp(any(SignUpRequest.class));

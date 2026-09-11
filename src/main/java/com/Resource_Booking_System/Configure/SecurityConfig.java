@@ -1,5 +1,6 @@
 package com.Resource_Booking_System.Configure;
 
+import com.Resource_Booking_System.Entity.Role;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,47 +47,56 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-                 http.csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        http.csrf(csrf -> csrf.disable()).sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .exceptionHandling(exception -> exception
 
                         .authenticationEntryPoint((request, response, authException) -> {
 
-                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
-                    response.setContentType("application/json");
+                            response.setContentType("application/json");
 
-                    response.getWriter().write("{\"error\":\"Unauthorized - Invalid or missing token\"}");
-                })
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.getWriter().write("{\"error\":\"Unauthorized - Invalid or missing token\"}");
+                        }).accessDeniedHandler((request, response, accessDeniedException) -> {
 
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 
-                    response.setContentType("application/json");
+                            response.setContentType("application/json");
 
-                    response.getWriter().write("{\"error\":\"Forbidden - Permission denied\"}");
-                }))
-
-
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/resources/**").hasAnyAuthority("USER", "ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/resources/**").hasAuthority("ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/resources/**").hasAuthority("ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/resources/**").hasAuthority("ADMIN")
+                            response.getWriter().write("{\"error\":\"Forbidden - Permission denied\"}");
+                        }))
 
 
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reservations/**").hasAnyAuthority("USER", "ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/reservations/**").hasAnyAuthority("USER", "ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/reservations/**").hasAuthority("ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/reservations/**").hasAuthority("ADMIN")
-                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/reservations/**").hasAuthority("ADMIN")
+                .authorizeHttpRequests(auth -> auth.requestMatchers(
+                        "/auth/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**").permitAll()
+
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/resources/**").hasAnyAuthority(Role.USER.name(), Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/resources/**").hasAuthority(Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/resources/**").hasAuthority(Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/resources/**").hasAuthority(Role.ADMIN.name())
+
+
+
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reservations/**").hasAnyAuthority(Role.USER.name(), Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/reservations/**").hasAnyAuthority(Role.USER.name(), Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/reservations/**").hasAuthority(Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/reservations/**").hasAuthority(Role.ADMIN.name())
+
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/reservations/**").hasAuthority(Role.ADMIN.name())
 
                         .anyRequest().authenticated())
-                         .authenticationProvider(authenticationProvider())
-                         .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

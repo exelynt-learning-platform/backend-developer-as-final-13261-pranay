@@ -3,8 +3,10 @@ package com.Resource_Booking_System.Controller;
 import com.Resource_Booking_System.Dto.AuthResponse;
 import com.Resource_Booking_System.Dto.LoginRequest;
 import com.Resource_Booking_System.Dto.SignUpRequest;
+import com.Resource_Booking_System.Dto.SignUpResponse;
 import com.Resource_Booking_System.IService.IAuthService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,11 +25,11 @@ public class AuthController {
 
 
     @PostMapping("/signup")
-    public ResponseEntity<SignUpRequest> sign (@Valid @RequestBody SignUpRequest signUpRequest)
+    public ResponseEntity<SignUpResponse> sign (@Valid @RequestBody SignUpRequest signUpRequest)
     {
-        SignUpRequest signUpRequest1 = authService.signUp(signUpRequest);
+        SignUpResponse signUpResponse = authService.signUp(signUpRequest);
 
-        return ResponseEntity.ok(signUpRequest1);
+        return ResponseEntity.status(HttpStatus.CREATED).body(signUpResponse);
     }
 
     @PostMapping("/login")
