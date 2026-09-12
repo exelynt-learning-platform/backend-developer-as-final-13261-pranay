@@ -2,6 +2,7 @@ package com.resource_booking_system.Configure;
 
 import com.resource_booking_system.Entity.Role;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,6 +20,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -28,20 +30,19 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final MyUserDetailsService userDetailsService;
 
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, MyUserDetailsService userDetailsService) {
 
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
     }
 
-
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
@@ -53,21 +54,18 @@ public class SecurityConfig {
         return provider;
     }
 
-
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
 
         return configuration.getAuthenticationManager();
     }
 
-
-
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
@@ -82,20 +80,14 @@ public class SecurityConfig {
         return source;
     }
 
-
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        http
-
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
                 .csrf(csrf -> csrf.disable())
 
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-
 
                 .exceptionHandling(exception -> exception
 
@@ -117,11 +109,9 @@ public class SecurityConfig {
                             response.getWriter().write("{\"error\":\"Forbidden - Permission denied\"}");
                         }))
 
-
-
                 .authorizeHttpRequests(auth -> auth
 
-                        // Public endpoints
+
                         .requestMatchers("/auth/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 
 
@@ -134,7 +124,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/resources/**").hasAuthority(Role.ADMIN.name())
 
 
-
                         .requestMatchers(HttpMethod.GET, "/api/reservations/**").hasAnyAuthority(Role.USER.name(), Role.ADMIN.name())
 
                         .requestMatchers(HttpMethod.POST, "/api/reservations/**").hasAnyAuthority(Role.USER.name(), Role.ADMIN.name())
@@ -145,14 +134,11 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.DELETE, "/api/reservations/**").hasAuthority(Role.ADMIN.name())
 
-
                         .anyRequest().authenticated())
-
 
                 .authenticationProvider(authenticationProvider())
 
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-
 
         return http.build();
     }

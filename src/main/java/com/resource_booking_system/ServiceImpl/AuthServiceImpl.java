@@ -4,13 +4,15 @@ import com.resource_booking_system.Configure.JwtUtil;
 import com.resource_booking_system.Dto.*;
 import com.resource_booking_system.Entity.Role;
 import com.resource_booking_system.Entity.User;
-import com.resource_booking_system.Exception.UserEmailNotFoundException;
+import com.resource_booking_system.Exception.DuplicateEmailException;
+import com.resource_booking_system.Exception.DuplicateUsernameException;
+import com.resource_booking_system.Exception.InvalidCredentialsException;
 import com.resource_booking_system.IService.IAuthService;
 import com.resource_booking_system.Repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +25,6 @@ public class AuthServiceImpl implements IAuthService {
     private final JwtUtil jwtUtil;
 
     public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager, JwtUtil jwtUtil) {
-
         this.userRepository = userRepository;
         this.authenticationManager = authenticationManager;
         this.passwordEncoder = passwordEncoder;
@@ -33,29 +34,31 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public SignUpResponse signUp(SignUpRequest signUpRequest) {
 
-        if (userRepository.existsByUsername(signUpRequest.getUsername())) {
-            throw new UsernameNotFoundException("Username Already Exists");
+        String username = signUpRequest.getUsername().trim();
+        String email = signUpRequest.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByUsername(username)) {
+            throw new DuplicateUsernameException("Username already exists");
         }
 
-        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-            throw new UserEmailNotFoundException("Email Already Exists");
+        if (userRepository.existsByEmail(email)) {
+            throw new DuplicateEmailException("Email already exists");
         }
 
         User user = new User();
-
-        user.setUsername(signUpRequest.getUsername());
-        user.setEmail(signUpRequest.getEmail());
+        user.setUsername(username);
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
         user.setRole(Role.USER);
+        user.setEnabled(true);
 
-        User create = userRepository.save(user);
+        User created = userRepository.save(user);
 
         SignUpResponse response = new SignUpResponse();
-
-        response.setId(create.getId());
-        response.setUsername(create.getUsername());
-        response.setEmail(create.getEmail());
-        response.setRole(create.getRole().name());
+        response.setId(created.getId());
+        response.setUsername(created.getUsername());
+        response.setEmail(created.getEmail());
+        response.setRole(created.getRole().name());
 
         return response;
     }
@@ -63,14 +66,17 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     public AuthResponse loginUser(LoginRequest loginRequest) {
 
-        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        try {
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        } catch (AuthenticationException ex) {
+
+            throw new InvalidCredentialsException("Invalid username or password");
+        }
 
         String accessToken = jwtUtil.generateAccessToken(loginRequest.getUsername());
-
         String refreshToken = jwtUtil.generateRefreshToken(loginRequest.getUsername());
 
         AuthResponse authResponse = new AuthResponse();
-
         authResponse.setAccessToken(accessToken);
         authResponse.setRefreshToken(refreshToken);
 
@@ -82,18 +88,31 @@ public class AuthServiceImpl implements IAuthService {
 
         String refreshToken = request.getRefreshToken();
 
-        if (!jwtUtil.validateRefreshToken(refreshToken)) {
-            throw new IllegalArgumentException("Invalid or expired refresh token");
+        Claims claims;
+        try {
+            claims = jwtUtil.extractAllClaims(refreshToken);
+        } catch (Exception e) {
+            throw new InvalidCredentialsException("Invalid or expired refresh token");
         }
 
-        String username = jwtUtil.extractUsername(refreshToken);
+        if (!jwtUtil.validateRefreshToken(claims)) {
+            throw new InvalidCredentialsException("Invalid or expired refresh token");
+        }
 
-        String newAccessToken = jwtUtil.generateAccessToken(username);
+        String username = jwtUtil.extractUsername(claims);
+
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new InvalidCredentialsException("User no longer exists"));
+
+        if (!user.isEnabled()) {
+            throw new InvalidCredentialsException("User account is disabled");
+        }
+
+        String newAccessToken = jwtUtil.generateAccessToken(user.getUsername());
+        String newRefreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
         AuthResponse authResponse = new AuthResponse();
-
         authResponse.setAccessToken(newAccessToken);
-        authResponse.setRefreshToken(refreshToken);
+        authResponse.setRefreshToken(newRefreshToken);
 
         return authResponse;
     }

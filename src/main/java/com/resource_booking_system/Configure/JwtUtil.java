@@ -18,6 +18,10 @@ import java.util.Map;
 @Component
 public class JwtUtil {
 
+    private static final String CLAIM_TYPE = "type";
+    private static final String TYPE_ACCESS = "ACCESS";
+    private static final String TYPE_REFRESH = "REFRESH";
+
     @Value("${jwt.secret}")
     private String secret;
 
@@ -28,95 +32,83 @@ public class JwtUtil {
     private long refreshTokenValidity;
 
     private SecretKey getSigningKey() {
-
         if (secret == null || secret.length() < 32) {
             throw new IllegalStateException("JWT secret must be at least 32 characters long");
         }
-
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
+
     public String generateAccessToken(String username) {
-
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("type", "ACCESS");
-
-        return createToken(claims, username, accessTokenValidity);
+        return generateToken(username, TYPE_ACCESS, accessTokenValidity);
     }
 
     public String generateAccessToken(UserDetails userDetails) {
-
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("type", "ACCESS");
-
-        return createToken(claims, userDetails.getUsername(), accessTokenValidity);
+        return generateAccessToken(userDetails.getUsername());
     }
 
     public String generateRefreshToken(String username) {
-
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("type", "REFRESH");
-
-        return createToken(claims, username, refreshTokenValidity);
+        return generateToken(username, TYPE_REFRESH, refreshTokenValidity);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
-
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("type", "REFRESH");
-
-        return createToken(claims, userDetails.getUsername(), refreshTokenValidity);
-    }
-
-    private String createToken(Map<String, Object> claims, String subject, long validity) {
-
-        return Jwts.builder().setClaims(claims).setSubject(subject).setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis() + validity)).signWith(getSigningKey(), SignatureAlgorithm.HS256).compact();
+        return generateRefreshToken(userDetails.getUsername());
     }
 
     public String extractUsername(String token) {
         return extractAllClaims(token).getSubject();
     }
 
-    public boolean validateToken(String token, UserDetails userDetails) {
+    public String extractUsername(Claims claims) {
+        return claims.getSubject();
+    }
 
+    public boolean validateToken(Claims claims, UserDetails userDetails) {
         try {
-
-            Claims claims = extractAllClaims(token);
-
             String username = claims.getSubject();
-            String tokenType = claims.get("type", String.class);
+            String tokenType = claims.get(CLAIM_TYPE, String.class);
+            Date expiration = claims.getExpiration();
 
-            return "ACCESS".equals(tokenType) && username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+            if (expiration == null || username == null) {
+                return false;
+            }
+
+            return TYPE_ACCESS.equals(tokenType) && username.equals(userDetails.getUsername()) && expiration.after(new Date());
 
         } catch (JwtException | IllegalArgumentException e) {
-
             return false;
         }
     }
 
-    public boolean validateRefreshToken(String token) {
-
+    public boolean validateRefreshToken(Claims claims) {
         try {
+            String tokenType = claims.get(CLAIM_TYPE, String.class);
+            Date expiration = claims.getExpiration();
 
-            Claims claims = extractAllClaims(token);
+            if (expiration == null) {
+                return false;
+            }
 
-            String tokenType = claims.get("type", String.class);
-
-            return "REFRESH".equals(tokenType) && !isTokenExpired(token);
+            return TYPE_REFRESH.equals(tokenType) && expiration.after(new Date());
 
         } catch (JwtException | IllegalArgumentException e) {
-
             return false;
         }
     }
 
-    private boolean isTokenExpired(String token) {
-
-        return extractAllClaims(token).getExpiration().before(new Date());
+    public Claims extractAllClaims(String token) {
+        return Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
     }
 
-    private Claims extractAllClaims(String token) {
 
-        return Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
+    private String generateToken(String subject, String type, long validity) {
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(CLAIM_TYPE, type);
+
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + validity);
+
+        return Jwts.builder().setClaims(claims).setSubject(subject).setIssuedAt(now).setExpiration(expiry).signWith(getSigningKey(), SignatureAlgorithm.HS256).compact();
     }
 }

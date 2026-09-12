@@ -60,9 +60,7 @@ class AuthControllerTest {
         when(authService.signUp(any(SignUpRequest.class))).thenReturn(response);
 
 
-        mockMvc.perform(post("/auth/signup")
-
-                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(1)).andExpect(jsonPath("$.username").value("Ram")).andExpect(jsonPath("$.email").value("ram@gmail.com")).andExpect(jsonPath("$.role").value("USER"));
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isCreated()).andExpect(jsonPath("$.id").value(1)).andExpect(jsonPath("$.username").value("Ram")).andExpect(jsonPath("$.email").value("ram@gmail.com")).andExpect(jsonPath("$.role").value("USER"));
 
 
         verify(authService).signUp(any(SignUpRequest.class));
@@ -87,13 +85,12 @@ class AuthControllerTest {
         when(authService.loginUser(any(LoginRequest.class))).thenReturn(response);
 
 
-        mockMvc.perform(post("/auth/login")
-
-                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("access-token")).andExpect(jsonPath("$.refreshToken").value("refresh-token"));
+        mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("access-token")).andExpect(jsonPath("$.refreshToken").value("refresh-token"));
 
 
         verify(authService).loginUser(any(LoginRequest.class));
     }
+
 
     @Test
     void refresh_ShouldReturnNewAccessTokenSuccessfully() throws Exception {
@@ -105,14 +102,12 @@ class AuthControllerTest {
         AuthResponse response = new AuthResponse();
 
         response.setAccessToken("new-access-token");
-        response.setRefreshToken("refresh-token");
+        response.setRefreshToken("new-refresh-token");
 
         when(authService.refreshAccessToken(any(RefreshTokenRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("new-access-token")).andExpect(jsonPath("$.refreshToken").value("refresh-token"));
+        mockMvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request))).andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("new-access-token")).andExpect(jsonPath("$.refreshToken").value("new-refresh-token"));
 
         verify(authService).refreshAccessToken(any(RefreshTokenRequest.class));
     }
-
-
 }

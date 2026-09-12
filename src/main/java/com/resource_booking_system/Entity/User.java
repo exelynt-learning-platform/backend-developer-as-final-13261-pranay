@@ -10,11 +10,11 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false,unique = true)
+    @Column(nullable = false, unique = true)
     private String username;
 
-    @Column(nullable = false,unique = true)
-    private  String email;
+    @Column(nullable = false, unique = true)
+    private String email;
 
     @Column(nullable = false)
     private String password;
@@ -23,8 +23,10 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    public User() {
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean enabled = true;
 
+    public User() {
     }
 
     public User(Long id, String username, String email, String password, Role role) {
@@ -73,5 +75,13 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }

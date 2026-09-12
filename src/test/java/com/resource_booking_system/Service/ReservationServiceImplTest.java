@@ -8,11 +8,7 @@ import com.resource_booking_system.Entity.ReservationStatus;
 import com.resource_booking_system.Entity.Resource;
 import com.resource_booking_system.Entity.Role;
 import com.resource_booking_system.Entity.User;
-import com.resource_booking_system.Exception.BadRequestException;
-import com.resource_booking_system.Exception.ForbiddenException;
-import com.resource_booking_system.Exception.ReservationNotFoundException;
-import com.resource_booking_system.Exception.ResourceNotFoundException;
-import com.resource_booking_system.Exception.UsernameNotFoundException;
+import com.resource_booking_system.Exception.*;
 import com.resource_booking_system.Repository.ReservationRepository;
 import com.resource_booking_system.Repository.ResourceRepository;
 import com.resource_booking_system.Repository.UserRepository;
@@ -34,7 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,9 +87,8 @@ class ReservationServiceImplTest {
         savedReservation.setStatus(ReservationStatus.PENDING);
 
         when(userRepository.findByUsername("Ram")).thenReturn(Optional.of(user));
-
         when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
-
+        when(reservationRepository.existsOverlappingReservation(eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
         when(reservationRepository.save(any(Reservation.class))).thenReturn(savedReservation);
 
         ReservationResponse response = reservationService.createReservation(request, "Ram");
@@ -126,7 +121,7 @@ class ReservationServiceImplTest {
 
         when(userRepository.findByUsername("Ram")).thenReturn(Optional.empty());
 
-        assertThrows(UsernameNotFoundException.class, () -> reservationService.createReservation(request, "Ram"));
+        assertThrows(InvalidCredentialsException.class, () -> reservationService.createReservation(request, "Ram"));
 
         verify(userRepository).findByUsername("Ram");
         verify(resourceRepository, never()).findById(any());
@@ -491,6 +486,8 @@ class ReservationServiceImplTest {
         reservation.setResource(oldResource);
         reservation.setPrice(new BigDecimal("500.00"));
         reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
 
         ReservationUpdateRequest request = new ReservationUpdateRequest();
 
@@ -501,9 +498,8 @@ class ReservationServiceImplTest {
         request.setStatus(ReservationStatus.CONFIRMED);
 
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
-
         when(resourceRepository.findById(2L)).thenReturn(Optional.of(newResource));
-
+        when(reservationRepository.existsOverlappingReservationExcludingId(eq(2L), eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
         when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
         ReservationResponse response = reservationService.updateReservation(1L, request, true);
@@ -511,15 +507,11 @@ class ReservationServiceImplTest {
         assertNotNull(response);
 
         assertEquals(2L, response.getResourceId());
-
         assertEquals(new BigDecimal("1000.00"), response.getPrice());
-
         assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
 
         verify(reservationRepository).findById(1L);
-
         verify(resourceRepository).findById(2L);
-
         verify(reservationRepository).save(reservation);
     }
 
@@ -559,6 +551,7 @@ class ReservationServiceImplTest {
 
         reservation.setId(1L);
         reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setStartTime(LocalDateTime.now().plusDays(2));
 
         ReservationUpdateRequest request = new ReservationUpdateRequest();
 
@@ -589,6 +582,8 @@ class ReservationServiceImplTest {
 
         reservation.setId(1L);
         reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
 
         ReservationUpdateRequest request = new ReservationUpdateRequest();
 
@@ -603,6 +598,320 @@ class ReservationServiceImplTest {
         when(resourceRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_PendingToConfirmed_ShouldWork() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+
+        Resource resource = new Resource();
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setUser(user);
+        reservation.setResource(resource);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+        reservation.setStatus(ReservationStatus.PENDING);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+        when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+        when(reservationRepository.existsOverlappingReservationExcludingId(eq(1L), eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
+
+        ReservationResponse response = reservationService.updateReservation(1L, request, true);
+
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
+    }
+
+
+    @Test
+    void updateReservation_PendingToCancelled_ShouldWork() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+
+        Resource resource = new Resource();
+
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setUser(user);
+        reservation.setResource(resource);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+        reservation.setStatus(ReservationStatus.PENDING);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+        request.setStatus(ReservationStatus.CANCELLED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+        when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+        when(reservationRepository.existsOverlappingReservationExcludingId(eq(1L), eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
+
+        ReservationResponse response = reservationService.updateReservation(1L, request, true);
+
+        assertEquals(ReservationStatus.CANCELLED, response.getStatus());
+    }
+
+
+    @Test
+    void updateReservation_ConfirmedToCancelled_ShouldWork() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+
+        Resource resource = new Resource();
+
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setUser(user);
+        reservation.setResource(resource);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+        reservation.setStatus(ReservationStatus.CONFIRMED);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+        request.setStatus(ReservationStatus.CANCELLED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+        when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+        when(reservationRepository.existsOverlappingReservationExcludingId(eq(1L), eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
+
+        ReservationResponse response = reservationService.updateReservation(1L, request, true);
+
+        assertEquals(ReservationStatus.CANCELLED, response.getStatus());
+    }
+
+
+    @Test
+    void updateReservation_CancelledReservation_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setStartTime(startTime);
+        reservation.setStatus(ReservationStatus.CANCELLED);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setResourceId(1L);
+        request.setStartTime(startTime);
+        request.setEndTime(startTime.plusHours(2));
+        request.setPrice(new BigDecimal("500"));
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_InvalidStatusTransition_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setStartTime(startTime);
+        reservation.setStatus(ReservationStatus.CONFIRMED);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setStartTime(startTime);
+        request.setEndTime(startTime.plusHours(2));
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStatus(ReservationStatus.PENDING);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_StatusChangeAfterStart_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().minusHours(1);
+
+        LocalDateTime endTime = LocalDateTime.now().plusHours(1);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+        reservation.setStatus(ReservationStatus.PENDING);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(LocalDateTime.now().plusDays(1));
+        request.setEndTime(LocalDateTime.now().plusDays(1).plusHours(2));
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_StatusChangeAfterEnd_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().minusHours(3);
+
+        LocalDateTime endTime = LocalDateTime.now().minusHours(1);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+        reservation.setStatus(ReservationStatus.CONFIRMED);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(LocalDateTime.now().plusDays(1));
+        request.setEndTime(LocalDateTime.now().plusDays(1).plusHours(2));
+        request.setStatus(ReservationStatus.CANCELLED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_NullStatus_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setStartTime(startTime);
+        reservation.setStatus(ReservationStatus.PENDING);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setStartTime(startTime);
+        request.setEndTime(startTime.plusHours(2));
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStatus(null);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_NullCurrentStatus_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+
+        Reservation reservation = new Reservation();
+
+        reservation.setId(1L);
+        reservation.setStartTime(startTime);
+        reservation.setStatus(null);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+
+        request.setStartTime(startTime);
+        request.setEndTime(startTime.plusHours(2));
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
 
         verify(reservationRepository, never()).save(any());
     }
@@ -645,4 +954,216 @@ class ReservationServiceImplTest {
 
         verify(reservationRepository, never()).delete(any(Reservation.class));
     }
+
+    @Test
+    void createReservation_WhenCancelledReservationExists_ShouldAllowNewBooking() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(1);
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        ReservationRequest request = new ReservationRequest();
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500.00"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+        user.setRole(Role.USER);
+
+        Resource resource = new Resource();
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        Reservation savedReservation = new Reservation();
+        savedReservation.setId(2L);
+        savedReservation.setUser(user);
+        savedReservation.setResource(resource);
+        savedReservation.setPrice(new BigDecimal("500.00"));
+        savedReservation.setStartTime(startTime);
+        savedReservation.setEndTime(endTime);
+        savedReservation.setStatus(ReservationStatus.PENDING);
+
+        when(userRepository.findByUsername("Ram")).thenReturn(Optional.of(user));
+        when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+
+        when(reservationRepository.existsOverlappingReservation(eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(savedReservation);
+
+        ReservationResponse response = reservationService.createReservation(request, "Ram");
+
+        assertNotNull(response);
+        assertEquals(ReservationStatus.PENDING, response.getStatus());
+
+        verify(reservationRepository).existsOverlappingReservation(1L, ReservationStatus.CANCELLED, startTime, endTime);
+        verify(reservationRepository).save(any(Reservation.class));
+    }
+
+
+    @Test
+    void createReservation_WhenActiveReservationExists_ShouldThrowException() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(1);
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        ReservationRequest request = new ReservationRequest();
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500.00"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+        user.setRole(Role.USER);
+
+        Resource resource = new Resource();
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        when(userRepository.findByUsername("Ram")).thenReturn(Optional.of(user));
+        when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+
+        when(reservationRepository.existsOverlappingReservation(eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> reservationService.createReservation(request, "Ram"));
+
+        verify(reservationRepository).existsOverlappingReservation(1L, ReservationStatus.CANCELLED, startTime, endTime);
+        verify(reservationRepository, never()).save(any(Reservation.class));
+    }
+
+
+    @Test
+    void updateReservation_WhenCancelledReservationOverlaps_ShouldAllowUpdate() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+
+        Resource oldResource = new Resource();
+        oldResource.setId(1L);
+        oldResource.setAvailable(true);
+
+        Resource newResource = new Resource();
+        newResource.setId(2L);
+        newResource.setName("New Room");
+        newResource.setAvailable(true);
+
+        Reservation reservation = new Reservation();
+        reservation.setId(1L);
+        reservation.setUser(user);
+        reservation.setResource(oldResource);
+        reservation.setPrice(new BigDecimal("500.00"));
+        reservation.setStatus(ReservationStatus.PENDING);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+        request.setResourceId(2L);
+        request.setPrice(new BigDecimal("1000.00"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+        when(resourceRepository.findById(2L)).thenReturn(Optional.of(newResource));
+
+        when(reservationRepository.existsOverlappingReservationExcludingId(eq(2L), eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
+
+        ReservationResponse response = reservationService.updateReservation(1L, request, true);
+
+        assertNotNull(response);
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
+
+        verify(reservationRepository).existsOverlappingReservationExcludingId(2L, 1L, ReservationStatus.CANCELLED, startTime, endTime);
+    }
+
+
+    @Test
+    void updateReservation_ConfirmedWithPastStartTime_ShouldThrowException() {
+
+        LocalDateTime futureOriginalStart = LocalDateTime.now().plusDays(2);
+        LocalDateTime pastStart = LocalDateTime.now().minusHours(1);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+
+        Resource resource = new Resource();
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        Reservation reservation = new Reservation();
+        reservation.setId(1L);
+        reservation.setUser(user);
+        reservation.setResource(resource);
+        reservation.setStartTime(futureOriginalStart);
+        reservation.setEndTime(futureOriginalStart.plusHours(2));
+        reservation.setStatus(ReservationStatus.PENDING);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(pastStart);
+        request.setEndTime(pastStart.plusHours(2));
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+
+        assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
+
+        verify(resourceRepository, never()).findById(any());
+        verify(reservationRepository, never()).save(any());
+    }
+
+
+    @Test
+    void updateReservation_ConfirmedWithFutureStartTime_ShouldSucceed() {
+
+        LocalDateTime startTime = LocalDateTime.now().plusDays(2);
+        LocalDateTime endTime = startTime.plusHours(2);
+
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("Ram");
+
+        Resource resource = new Resource();
+        resource.setId(1L);
+        resource.setName("Meeting Room");
+        resource.setAvailable(true);
+
+        Reservation reservation = new Reservation();
+        reservation.setId(1L);
+        reservation.setUser(user);
+        reservation.setResource(resource);
+        reservation.setStartTime(startTime);
+        reservation.setEndTime(endTime);
+        reservation.setStatus(ReservationStatus.PENDING);
+
+        ReservationUpdateRequest request = new ReservationUpdateRequest();
+        request.setResourceId(1L);
+        request.setPrice(new BigDecimal("500"));
+        request.setStartTime(startTime);
+        request.setEndTime(endTime);
+        request.setStatus(ReservationStatus.CONFIRMED);
+
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+        when(resourceRepository.findById(1L)).thenReturn(Optional.of(resource));
+        when(reservationRepository.existsOverlappingReservationExcludingId(eq(1L), eq(1L), eq(ReservationStatus.CANCELLED), eq(startTime), eq(endTime))).thenReturn(false);
+        when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
+
+        ReservationResponse response = reservationService.updateReservation(1L, request, true);
+
+        assertNotNull(response);
+        assertEquals(ReservationStatus.CONFIRMED, response.getStatus());
+    }
+
 }

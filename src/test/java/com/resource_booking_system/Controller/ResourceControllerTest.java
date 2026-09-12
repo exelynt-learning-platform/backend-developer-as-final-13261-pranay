@@ -14,6 +14,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ResourceController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@TestPropertySource(properties = {"app.pagination.max-page-size=50"})
 class ResourceControllerTest {
 
     @Autowired
@@ -74,7 +76,6 @@ class ResourceControllerTest {
     }
 
 
-
     @Test
     void getResourceById_ShouldReturnSuccess() throws Exception {
 
@@ -95,7 +96,6 @@ class ResourceControllerTest {
 
         verify(resourceService).getResourceById(1L);
     }
-
 
 
     @Test
@@ -162,15 +162,39 @@ class ResourceControllerTest {
     }
 
 
-
     @Test
     void deleteResource_ShouldReturnNoContent() throws Exception {
 
         doNothing().when(resourceService).deleteResource(1L);
 
-        mockMvc.perform(delete("/api/resources/1"))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/resources/1")).andExpect(status().isNoContent());
 
         verify(resourceService).deleteResource(1L);
     }
+
+    @Test
+    void getAllResource_invalidSortField_ShouldReturnBadRequest() throws Exception {
+
+        mockMvc.perform(get("/api/resources").param("sort", "user.password,asc")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Invalid sort field: user.password"));
+
+        verify(resourceService, never()).getAllResource(any());
+    }
+
+
+    @Test
+    void getAllResource_pageSizeExceedsMax_ShouldReturnBadRequest() throws Exception {
+
+        mockMvc.perform(get("/api/resources").param("size", "999")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Page size must not exceed 50"));
+
+        verify(resourceService, never()).getAllResource(any());
+    }
+
+    @Test
+    void getResourceById_negativeId_shouldReturnBadRequest() throws Exception {
+
+        mockMvc.perform(get("/api/resources/-1")).andExpect(status().isBadRequest());
+
+        verify(resourceService, never()).getResourceById(any());
+    }
+
 }
