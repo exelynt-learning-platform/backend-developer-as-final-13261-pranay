@@ -9,6 +9,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +24,8 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
     private final JwtUtil jwtUtil;
     private final MyUserDetailsService userDetailsService;
 
@@ -33,16 +37,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        return path.startsWith("/auth/")
-                || path.startsWith("/swagger-ui")
-                || path.startsWith("/v3/api-docs")
-                || path.startsWith("/error");
+        return path.startsWith("/auth/") || path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs") || path.startsWith("/error");
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
 
@@ -64,29 +63,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (jwtUtil.validateToken(claims, userDetails)) {
 
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails,
-                                    null,
-                                    userDetails.getAuthorities());
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
 
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                    log.debug("Authenticated user '{}' via JWT", username);
                 }
             }
 
         } catch (ExpiredJwtException e) {
-            logger.warn("JWT token expired: {}");
+            log.warn("JWT token expired", e);
         } catch (SignatureException e) {
-            logger.warn("Invalid JWT signature: {}");
+            log.warn("Invalid JWT signature", e);
         } catch (MalformedJwtException e) {
-            logger.warn("Malformed JWT token: {}");
+            log.warn("Malformed JWT token", e);
         } catch (UnsupportedJwtException e) {
-            logger.warn("Unsupported JWT token: {}");
+            log.warn("Unsupported JWT token", e);
         } catch (IllegalArgumentException e) {
-            logger.warn("JWT claims string is empty: {}");
+            log.warn("JWT claims string is empty", e);
         } catch (AuthenticationException e) {
-            logger.warn("Authentication failed for token subject: {}");
+            log.warn("Authentication failed during JWT filter", e);
         }
 
         filterChain.doFilter(request, response);

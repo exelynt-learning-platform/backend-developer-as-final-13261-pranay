@@ -47,7 +47,6 @@ public class ReservationServiceImpl implements IReservationService {
         this.resourceRepository = resourceRepository;
     }
 
-
     @Override
     public ReservationResponse createReservation(ReservationRequest reservationRequest, String username) {
 
@@ -128,12 +127,11 @@ public class ReservationServiceImpl implements IReservationService {
         reservationRepository.delete(findReservationById(id));
     }
 
-
     private Resource validateAndResolveUpdate(Reservation reservation, ReservationUpdateRequest updateRequest) {
 
         validateReservationTime(updateRequest.getStartTime(), updateRequest.getEndTime(), updateRequest.getStatus());
 
-        validateStatusTransition(reservation.getStatus(), updateRequest.getStatus(), reservation.getStartTime());
+        validateStatusTransition(reservation.getStatus(), updateRequest.getStatus(), updateRequest.getStartTime());
 
         Resource resource = findResourceById(updateRequest.getResourceId());
         validateResourceAvailability(resource);
@@ -144,7 +142,6 @@ public class ReservationServiceImpl implements IReservationService {
     }
 
     private void applyUpdate(Reservation reservation, ReservationUpdateRequest updateRequest, Resource resource) {
-
         reservation.setResource(resource);
         reservation.setPrice(updateRequest.getPrice());
         reservation.setStartTime(updateRequest.getStartTime());
@@ -153,7 +150,6 @@ public class ReservationServiceImpl implements IReservationService {
     }
 
     private Reservation buildReservation(User user, Resource resource, ReservationRequest request) {
-
         Reservation reservation = new Reservation();
         reservation.setUser(user);
         reservation.setResource(resource);
@@ -193,18 +189,14 @@ public class ReservationServiceImpl implements IReservationService {
     }
 
     private void validateNoOverlap(Long resourceId, LocalDateTime startTime, LocalDateTime endTime) {
-
         boolean overlap = reservationRepository.existsOverlappingReservation(resourceId, ReservationStatus.CANCELLED, startTime, endTime);
-
         if (overlap) {
             throw new BadRequestException(OVERLAP_MESSAGE);
         }
     }
 
     private void validateNoOverlapForUpdate(Long resourceId, Long reservationId, LocalDateTime startTime, LocalDateTime endTime) {
-
         boolean overlap = reservationRepository.existsOverlappingReservationExcludingId(resourceId, reservationId, ReservationStatus.CANCELLED, startTime, endTime);
-
         if (overlap) {
             throw new BadRequestException(OVERLAP_MESSAGE);
         }
@@ -220,12 +212,16 @@ public class ReservationServiceImpl implements IReservationService {
             throw new BadRequestException("Start time must be before end time");
         }
 
-        if (!startTime.isAfter(LocalDateTime.now())) {
-            throw new BadRequestException("Start time must be in the future");
-        }
+        LocalDateTime now = LocalDateTime.now();
 
-        if (status == ReservationStatus.CONFIRMED && !startTime.isAfter(LocalDateTime.now())) {
-            throw new BadRequestException("Confirmed reservation start time must be in the future");
+        if (status == ReservationStatus.CONFIRMED) {
+            if (!startTime.isAfter(now)) {
+                throw new BadRequestException("Confirmed reservation start time must be in the future");
+            }
+        } else {
+            if (!startTime.isAfter(now)) {
+                throw new BadRequestException("Start time must be in the future");
+            }
         }
     }
 
@@ -246,7 +242,7 @@ public class ReservationServiceImpl implements IReservationService {
         }
 
         if (currentStatus == newStatus) {
-            return; // idempotent no-op
+            return;
         }
 
         if (reservationStartTime == null) {
@@ -264,10 +260,7 @@ public class ReservationServiceImpl implements IReservationService {
         }
     }
 
-    // ---------------- Mapper ----------------
-
     private ReservationResponse mapToResponse(Reservation reservation) {
-
         ReservationResponse response = new ReservationResponse();
         response.setId(reservation.getId());
         response.setUserId(reservation.getUser().getId());

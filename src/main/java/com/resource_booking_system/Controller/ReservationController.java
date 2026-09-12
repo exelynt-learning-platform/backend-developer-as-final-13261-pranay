@@ -1,21 +1,18 @@
 package com.resource_booking_system.Controller;
 
+import com.resource_booking_system.Configure.PageableValidator;
 import com.resource_booking_system.Dto.ReservationRequest;
 import com.resource_booking_system.Dto.ReservationResponse;
 import com.resource_booking_system.Dto.ReservationStatusUpdateRequest;
 import com.resource_booking_system.Dto.ReservationUpdateRequest;
 import com.resource_booking_system.Entity.ReservationStatus;
 import com.resource_booking_system.Entity.Role;
-import com.resource_booking_system.Exception.BadRequestException;
 import com.resource_booking_system.Exception.InvalidCredentialsException;
 import com.resource_booking_system.IService.IReservationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,11 +40,11 @@ public class ReservationController {
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "price", "startTime", "endTime", "status");
 
     private final IReservationService reservationService;
-    private final int maxPageSize;
+    private final PageableValidator pageableValidator;
 
-    public ReservationController(IReservationService reservationService, @Value("${app.pagination.max-page-size:50}") int maxPageSize) {
+    public ReservationController(IReservationService reservationService, PageableValidator pageableValidator) {
         this.reservationService = reservationService;
-        this.maxPageSize = maxPageSize;
+        this.pageableValidator = pageableValidator;
     }
 
     @PostMapping
@@ -77,8 +74,7 @@ public class ReservationController {
         String username = requireUsername(userDetails);
         boolean isAdmin = isAdmin(userDetails);
 
-        validateSort(pageable);
-        Pageable safePageable = createSafePageable(pageable);
+        Pageable safePageable = pageableValidator.validateAndSanitize(pageable, ALLOWED_SORT_FIELDS);
 
         Page<ReservationResponse> response = reservationService.getAllReservation(status, minPrice, maxPrice, username, isAdmin, safePageable);
 
@@ -117,7 +113,6 @@ public class ReservationController {
 
     // ---------------- Private helpers ----------------
 
-
     private String requireUsername(UserDetails userDetails) {
         if (userDetails == null) {
             throw new InvalidCredentialsException("Authentication required");
@@ -132,23 +127,5 @@ public class ReservationController {
         }
 
         return userDetails.getAuthorities().stream().anyMatch(authority -> Role.ADMIN.name().equals(authority.getAuthority()));
-    }
-
-    private void validateSort(Pageable pageable) {
-
-        for (Sort.Order order : pageable.getSort()) {
-            if (!ALLOWED_SORT_FIELDS.contains(order.getProperty())) {
-                throw new BadRequestException("Invalid sort field: " + order.getProperty());
-            }
-        }
-    }
-
-    private Pageable createSafePageable(Pageable pageable) {
-
-        if (pageable.getPageSize() > maxPageSize) {
-            throw new BadRequestException("Page size must not exceed " + maxPageSize);
-        }
-
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), pageable.getSort());
     }
 }

@@ -44,6 +44,7 @@ class JwtUtilTest {
         ReflectionTestUtils.setField(jwtUtil, "secret", SECRET);
         ReflectionTestUtils.setField(jwtUtil, "accessTokenValidity", ACCESS_VALIDITY);
         ReflectionTestUtils.setField(jwtUtil, "refreshTokenValidity", REFRESH_VALIDITY);
+        ReflectionTestUtils.invokeMethod(jwtUtil, "init");
 
         userDetails = User.withUsername("john").password("password").authorities(Collections.singletonList(new SimpleGrantedAuthority("USER"))).build();
     }
@@ -313,7 +314,8 @@ class JwtUtilTest {
         ReflectionTestUtils.setField(brokenUtil, "accessTokenValidity", ACCESS_VALIDITY);
         ReflectionTestUtils.setField(brokenUtil, "refreshTokenValidity", REFRESH_VALIDITY);
 
-        assertThrows(IllegalStateException.class, () -> brokenUtil.generateAccessToken("john"));
+        assertThrows(IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(brokenUtil, "init"));
     }
 
     @Test
@@ -324,6 +326,7 @@ class JwtUtilTest {
         ReflectionTestUtils.setField(brokenUtil, "accessTokenValidity", ACCESS_VALIDITY);
         ReflectionTestUtils.setField(brokenUtil, "refreshTokenValidity", REFRESH_VALIDITY);
 
-        assertThrows(IllegalStateException.class, () -> brokenUtil.generateAccessToken("john"));
+        assertThrows(IllegalStateException.class,
+                () -> ReflectionTestUtils.invokeMethod(brokenUtil, "init"));
     }
 }

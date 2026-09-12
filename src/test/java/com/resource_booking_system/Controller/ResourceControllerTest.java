@@ -17,9 +17,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
+import com.resource_booking_system.Configure.PageableValidator;
 import java.util.List;
-
+import org.springframework.context.annotation.Import;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(ResourceController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {"app.pagination.max-page-size=50"})
+@Import(PageableValidator.class)
 class ResourceControllerTest {
 
     @Autowired

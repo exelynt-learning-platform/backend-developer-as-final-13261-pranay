@@ -45,6 +45,7 @@ class DataInitializerTest {
         ReflectionTestUtils.setField(dataInitializer, "userUsername", "Ram");
         ReflectionTestUtils.setField(dataInitializer, "userEmail", "ram@x.com");
         ReflectionTestUtils.setField(dataInitializer, "userPassword", "User@123");
+        ReflectionTestUtils.setField(dataInitializer, "seedEnabled", true);
     }
 
     @Test
@@ -129,5 +130,17 @@ class DataInitializerTest {
         CommandLineRunner runner = dataInitializer.createUsers(userRepository, passwordEncoder);
 
         assertNotNull(runner);
+    }
+
+    @Test
+    void createUsers_whenSeedDisabled_shouldNotCreateAnyUser() throws Exception {
+
+        ReflectionTestUtils.setField(dataInitializer, "seedEnabled", false);
+
+        CommandLineRunner runner = dataInitializer.createUsers(userRepository, passwordEncoder);
+        runner.run();
+
+        verify(userRepository, never()).save(any(User.class));
+        verify(passwordEncoder, never()).encode(anyString());
     }
 }

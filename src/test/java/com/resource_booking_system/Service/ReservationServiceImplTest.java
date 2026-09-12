@@ -798,23 +798,20 @@ class ReservationServiceImplTest {
     @Test
     void updateReservation_StatusChangeAfterStart_ShouldThrowException() {
 
-        LocalDateTime startTime = LocalDateTime.now().minusHours(1);
-
-        LocalDateTime endTime = LocalDateTime.now().plusHours(1);
+        LocalDateTime pastStart = LocalDateTime.now().minusHours(1);
+        LocalDateTime futureEnd = LocalDateTime.now().plusHours(1);
 
         Reservation reservation = new Reservation();
-
         reservation.setId(1L);
-        reservation.setStartTime(startTime);
-        reservation.setEndTime(endTime);
+        reservation.setStartTime(pastStart);
+        reservation.setEndTime(futureEnd);
         reservation.setStatus(ReservationStatus.PENDING);
 
         ReservationUpdateRequest request = new ReservationUpdateRequest();
-
         request.setResourceId(1L);
         request.setPrice(new BigDecimal("500"));
-        request.setStartTime(LocalDateTime.now().plusDays(1));
-        request.setEndTime(LocalDateTime.now().plusDays(1).plusHours(2));
+        request.setStartTime(LocalDateTime.now().minusMinutes(30));
+        request.setEndTime(LocalDateTime.now().plusHours(1));
         request.setStatus(ReservationStatus.CONFIRMED);
 
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
@@ -822,7 +819,6 @@ class ReservationServiceImplTest {
         assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
 
         verify(resourceRepository, never()).findById(any());
-
         verify(reservationRepository, never()).save(any());
     }
 
@@ -830,23 +826,20 @@ class ReservationServiceImplTest {
     @Test
     void updateReservation_StatusChangeAfterEnd_ShouldThrowException() {
 
-        LocalDateTime startTime = LocalDateTime.now().minusHours(3);
-
-        LocalDateTime endTime = LocalDateTime.now().minusHours(1);
+        LocalDateTime pastStart = LocalDateTime.now().minusHours(3);
+        LocalDateTime pastEnd = LocalDateTime.now().minusHours(1);
 
         Reservation reservation = new Reservation();
-
         reservation.setId(1L);
-        reservation.setStartTime(startTime);
-        reservation.setEndTime(endTime);
+        reservation.setStartTime(pastStart);
+        reservation.setEndTime(pastEnd);
         reservation.setStatus(ReservationStatus.CONFIRMED);
 
         ReservationUpdateRequest request = new ReservationUpdateRequest();
-
         request.setResourceId(1L);
         request.setPrice(new BigDecimal("500"));
-        request.setStartTime(LocalDateTime.now().plusDays(1));
-        request.setEndTime(LocalDateTime.now().plusDays(1).plusHours(2));
+        request.setStartTime(LocalDateTime.now().minusMinutes(30));
+        request.setEndTime(LocalDateTime.now().plusHours(1));
         request.setStatus(ReservationStatus.CANCELLED);
 
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
@@ -854,7 +847,6 @@ class ReservationServiceImplTest {
         assertThrows(BadRequestException.class, () -> reservationService.updateReservation(1L, request, true));
 
         verify(resourceRepository, never()).findById(any());
-
         verify(reservationRepository, never()).save(any());
     }
 

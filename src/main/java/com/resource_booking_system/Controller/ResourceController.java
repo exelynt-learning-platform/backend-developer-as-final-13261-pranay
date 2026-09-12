@@ -1,15 +1,12 @@
 package com.resource_booking_system.Controller;
 
+import com.resource_booking_system.Configure.PageableValidator;
 import com.resource_booking_system.Dto.ResourceDto;
-import com.resource_booking_system.Exception.BadRequestException;
 import com.resource_booking_system.IService.IResourceService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -29,20 +26,16 @@ import java.util.Set;
 @Validated
 public class ResourceController {
 
-
-    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("id", "name", "type", "available", "createdAt", "updatedAt");
+    private static final Set<String> ALLOWED_SORT_FIELDS =
+            Set.of("id", "name", "type", "available", "createdAt", "updatedAt");
 
     private final IResourceService resourceService;
+    private final PageableValidator pageableValidator;
 
-    private final int maxPageSize;
-
-    public ResourceController(
-            IResourceService resourceService,
-            @Value("${app.pagination.max-page-size:50}")
-            int maxPageSize)
-    {
+    public ResourceController(IResourceService resourceService,
+                              PageableValidator pageableValidator) {
         this.resourceService = resourceService;
-        this.maxPageSize = maxPageSize;
+        this.pageableValidator = pageableValidator;
     }
 
     @PostMapping
@@ -64,9 +57,7 @@ public class ResourceController {
     @GetMapping
     public ResponseEntity<Page<ResourceDto>> getAllResource(Pageable pageable) {
 
-        validateSort(pageable);
-
-        Pageable safePageable = createSafePageable(pageable);
+        Pageable safePageable = pageableValidator.validateAndSanitize(pageable, ALLOWED_SORT_FIELDS);
 
         Page<ResourceDto> response = resourceService.getAllResource(safePageable);
 
@@ -87,23 +78,5 @@ public class ResourceController {
         resourceService.deleteResource(id);
 
         return ResponseEntity.noContent().build();
-    }
-
-    private void validateSort(Pageable pageable) {
-
-        for (Sort.Order order : pageable.getSort()) {
-            if (!ALLOWED_SORT_FIELDS.contains(order.getProperty())) {
-                throw new BadRequestException("Invalid sort field: " + order.getProperty());
-            }
-        }
-    }
-
-    private Pageable createSafePageable(Pageable pageable) {
-
-        if (pageable.getPageSize() > maxPageSize) {
-            throw new BadRequestException("Page size must not exceed " + maxPageSize);
-        }
-
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), pageable.getSort());
     }
 }

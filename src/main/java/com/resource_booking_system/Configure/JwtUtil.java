@@ -5,6 +5,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,9 @@ public class JwtUtil {
     private static final String TYPE_ACCESS = "ACCESS";
     private static final String TYPE_REFRESH = "REFRESH";
 
+    private static final String ISSUER = "resource-booking-system";
+    private static final String AUDIENCE = "resource-booking-system-api";
+
     @Value("${jwt.secret}")
     private String secret;
 
@@ -31,11 +35,14 @@ public class JwtUtil {
     @Value("${jwt.refresh-token-validity}")
     private long refreshTokenValidity;
 
-    private SecretKey getSigningKey() {
+    private SecretKey signingKey;
+
+    @PostConstruct
+    void init() {
         if (secret == null || secret.length() < 32) {
             throw new IllegalStateException("JWT secret must be at least 32 characters long");
         }
-        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
 
@@ -73,7 +80,9 @@ public class JwtUtil {
                 return false;
             }
 
-            return TYPE_ACCESS.equals(tokenType) && username.equals(userDetails.getUsername()) && expiration.after(new Date());
+            return TYPE_ACCESS.equals(tokenType)
+                    && username.equals(userDetails.getUsername())
+                    && expiration.after(new Date());
 
         } catch (JwtException | IllegalArgumentException e) {
             return false;
@@ -97,7 +106,13 @@ public class JwtUtil {
     }
 
     public Claims extractAllClaims(String token) {
-        return Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(token).getPayload();
+        return Jwts.parser()
+                .requireIssuer(ISSUER)
+                .requireAudience(AUDIENCE)
+                .verifyWith(signingKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
 
@@ -109,6 +124,14 @@ public class JwtUtil {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + validity);
 
-        return Jwts.builder().setClaims(claims).setSubject(subject).setIssuedAt(now).setExpiration(expiry).signWith(getSigningKey(), SignatureAlgorithm.HS256).compact();
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuer(ISSUER)
+                .setAudience(AUDIENCE)
+                .setIssuedAt(now)
+                .setExpiration(expiry)
+                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .compact();
     }
 }
